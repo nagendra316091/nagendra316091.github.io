@@ -146,31 +146,35 @@
 
     const seed = () => {
       const area = width * height;
-      const starCount = Math.min(280, Math.max(80, Math.floor(area / 4800)));
+      const starCount = Math.min(360, Math.max(120, Math.floor(area / 3600)));
 
       stars = Array.from({ length: starCount }, () => {
         const tier = Math.random();
-        const r = tier < 0.7 ? Math.random() * 0.9 + 0.25 : Math.random() * 1.6 + 0.9;
+        let r;
+        if (tier < 0.78) r = Math.random() * 0.5 + 0.18;
+        else if (tier < 0.96) r = Math.random() * 0.8 + 0.7;
+        else r = Math.random() * 0.9 + 1.4;
         const hueRoll = Math.random();
-        const hue = hueRoll < 0.18 ? "blue" : hueRoll < 0.28 ? "warm" : "white";
+        const hue = hueRoll < 0.10 ? "blue" : hueRoll < 0.16 ? "warm" : "white";
         return {
           x: Math.random() * width,
           y: Math.random() * height,
           r,
-          baseAlpha: 0.35 + Math.random() * 0.45,
+          baseAlpha: 0.55 + Math.random() * 0.4,
           twinklePhase: Math.random() * Math.PI * 2,
-          twinkleSpeed: 0.4 + Math.random() * 1.4,
+          twinkleSpeed: 0.25 + Math.random() * 0.7,
           hue,
+          spikes: r > 1.5,
         };
       });
 
-      const drifterCount = Math.max(8, Math.floor(starCount * 0.12));
+      const drifterCount = Math.max(6, Math.floor(starCount * 0.06));
       drifters = Array.from({ length: drifterCount }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        r: Math.random() * 0.9 + 0.5,
-        vx: (Math.random() - 0.5) * 0.10,
-        vy: (Math.random() - 0.5) * 0.04,
+        r: Math.random() * 0.6 + 0.4,
+        vx: (Math.random() - 0.5) * 0.06,
+        vy: (Math.random() - 0.5) * 0.025,
       }));
 
       moon = {
@@ -201,66 +205,116 @@
     const drawMoon = () => {
       const { x, y, r } = moon;
 
-      // Outer halo
-      const halo = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 4.2);
-      halo.addColorStop(0, "rgba(232, 238, 252, 0.32)");
-      halo.addColorStop(0.35, "rgba(160, 180, 230, 0.10)");
+      // Outer halo (kept subtle since only half the moon is lit)
+      const halo = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 3.6);
+      halo.addColorStop(0, "rgba(232, 238, 252, 0.22)");
+      halo.addColorStop(0.4, "rgba(160, 180, 230, 0.06)");
       halo.addColorStop(1, "rgba(0, 0, 0, 0)");
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(x, y, r * 4.2, 0, Math.PI * 2);
+      ctx.arc(x, y, r * 3.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Moon body with subtle directional shading
+      // Full moon body (we'll cover the dark side after)
       const body = ctx.createRadialGradient(
-        x - r * 0.45, y - r * 0.45, r * 0.05,
+        x + r * 0.25, y - r * 0.25, r * 0.05,
         x, y, r * 1.05
       );
       body.addColorStop(0, "#fefdf6");
-      body.addColorStop(0.55, "#e9e6d4");
-      body.addColorStop(1, "#9aa1ad");
+      body.addColorStop(0.55, "#ece8d4");
+      body.addColorStop(1, "#9b9484");
       ctx.fillStyle = body;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
 
-      // Craters
-      ctx.fillStyle = "rgba(70, 70, 95, 0.20)";
+      // Craters (subtle)
+      ctx.fillStyle = "rgba(60, 58, 78, 0.18)";
       [
-        [-0.32, -0.10, 0.18],
-        [0.22, 0.26, 0.13],
-        [0.36, -0.30, 0.085],
-        [-0.05, 0.42, 0.10],
-        [-0.45, 0.20, 0.07],
+        [-0.10, -0.10, 0.16],
+        [0.30, 0.22, 0.13],
+        [0.45, -0.25, 0.085],
+        [0.05, 0.40, 0.10],
+        [-0.30, 0.20, 0.085],
+        [0.15, -0.35, 0.06],
       ].forEach(([dx, dy, rs]) => {
         ctx.beginPath();
         ctx.arc(x + r * dx, y + r * dy, r * rs, 0, Math.PI * 2);
         ctx.fill();
       });
 
-      // Highlight rim
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-      ctx.lineWidth = 1;
+      // Half-moon shadow: cover the LEFT half with a soft terminator
+      // Clip to circle, then paint a horizontal gradient that goes
+      // from near-black on the left to transparent on the right.
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(x, y, r * 0.98, 0, Math.PI * 2);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.clip();
+
+      const shadow = ctx.createLinearGradient(x - r, y, x + r * 0.10, y);
+      shadow.addColorStop(0,    "rgba(2, 3, 8, 0.97)");
+      shadow.addColorStop(0.45, "rgba(2, 3, 8, 0.92)");
+      shadow.addColorStop(0.55, "rgba(2, 3, 8, 0.55)");
+      shadow.addColorStop(1,    "rgba(2, 3, 8, 0.00)");
+      ctx.fillStyle = shadow;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      ctx.restore();
+
+      // Faint rim on the lit side only
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, r, -Math.PI / 2, Math.PI / 2);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.lineWidth = 0.8;
       ctx.stroke();
+      ctx.restore();
     };
 
     const drawStars = (t) => {
       for (const s of stars) {
+        // Subtle twinkle: 75% baseline + 25% sin variance, so stars look mostly steady
         const tw = (Math.sin(t * 0.001 * s.twinkleSpeed + s.twinklePhase) + 1) * 0.5;
-        const alpha = s.baseAlpha * (0.4 + tw * 0.7);
+        const alpha = s.baseAlpha * (0.75 + tw * 0.25);
+
+        // Core dot
         ctx.fillStyle = colorFor(s.hue, Math.min(1, alpha));
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
         ctx.fill();
 
-        // soft glow on bigger stars
-        if (s.r > 1.0) {
-          ctx.fillStyle = colorFor(s.hue, alpha * 0.18);
+        // Soft glow on medium+ stars
+        if (s.r > 0.9) {
+          ctx.fillStyle = colorFor(s.hue, alpha * 0.14);
           ctx.beginPath();
           ctx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
           ctx.fill();
+        }
+
+        // Diffraction spikes on the brightest stars
+        if (s.spikes) {
+          const spikeLen = s.r * 6;
+          const grad = ctx.createLinearGradient(
+            s.x - spikeLen, s.y, s.x + spikeLen, s.y);
+          grad.addColorStop(0,   "rgba(255,255,255,0)");
+          grad.addColorStop(0.5, `rgba(255,255,255,${alpha * 0.65})`);
+          grad.addColorStop(1,   "rgba(255,255,255,0)");
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(s.x - spikeLen, s.y);
+          ctx.lineTo(s.x + spikeLen, s.y);
+          ctx.stroke();
+
+          const grad2 = ctx.createLinearGradient(
+            s.x, s.y - spikeLen, s.x, s.y + spikeLen);
+          grad2.addColorStop(0,   "rgba(255,255,255,0)");
+          grad2.addColorStop(0.5, `rgba(255,255,255,${alpha * 0.65})`);
+          grad2.addColorStop(1,   "rgba(255,255,255,0)");
+          ctx.strokeStyle = grad2;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y - spikeLen);
+          ctx.lineTo(s.x, s.y + spikeLen);
+          ctx.stroke();
         }
       }
     };
